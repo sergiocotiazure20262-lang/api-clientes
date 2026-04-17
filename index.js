@@ -51,6 +51,43 @@ app.get('/api/clientes', (req, res) => {
 
 /**
  * @swagger
+ * /api/clientes/{id}:
+ *    get:
+ *      summary: Busca cliente por ID
+ *      parameters:
+ *         - in: path
+ *           name: id
+ *           required: true
+ *           schema:
+ *              type: integer
+ *      responses:
+ *          200:
+ *             description: Cliente encontrado
+ *          404:
+ *             description: Cliente não encontrado
+ */
+app.get('/api/clientes/:id', (req, res) => {
+
+    //Capturar o ID enviado no path da requisição (uri do endpoint)
+    const id = parseInt(req.params.id);
+
+    //Buscar o cliente pelo id
+    const cliente = clientes.find(c => c.id == id);
+
+    //Verificando se o cliente não foi encontrado
+    if(!cliente) {
+        return res.status(404).json({
+            mensagem : "Cliente não encontrado. Verifique o ID informado."
+        });
+    }
+
+    //Retornar os dado do cliente
+    res.json(cliente);
+});
+
+
+/**
+ * @swagger
  * /api/clientes:
  *    post:
  *      summary: Cria um novo cliente no sistema
@@ -88,6 +125,100 @@ app.post('/api/clientes', (req, res) => {
     //Retornar os dados do cliente cadastrado
     res.status(201).json(novoCliente);
 });
+
+/**
+ * @swagger
+ * /api/clientes/{id}:
+ *     put:
+ *        summary: Atualiza um cliente no sistema
+ *        parameters:
+ *           - in: path
+ *             name: id
+ *             required: true
+ *             schema:
+ *                type: integer
+ *        requestBody:
+ *           required: true
+ *           content:
+ *               application/json:
+ *                  schema:
+ *                     type: object
+ *                     properties:
+ *                         nome:
+ *                            type: string
+ *                         email:
+ *                            type: string
+ *        responses:
+ *             200:
+ *                 description: Cliente atualizado com sucesso
+ *             404:
+ *                 description: Cliente não encontrado
+ */
+app.put('/api/clientes/:id', (req, res) => {
+
+    //Capturando o id enviado na URI (path) da requisição
+    const id = parseInt(req.params.id);
+
+    //Capturando o nome e email enviados no corpo da requisição
+    const { nome } = req.body;
+    const { email } = req.body;
+
+    //Buscar o cliente pelo ID
+    const cliente = clientes.find(c => c.id == id);
+
+    //Verificar se o cliente não foi encontrado
+    if(!cliente) {
+        return res.status(404).json({
+            mensagem: "Cliente não encontrado para edição."
+         });
+    }
+
+    //Modificar os dados do cliente
+    cliente.nome = nome;
+    cliente.email = email;
+
+    //Retornar os dados do cliente atualizado
+    res.json(cliente);
+});
+
+/**
+ * @swagger
+ * /api/clientes/{id}:
+ *    delete:
+ *       summary: Remove um cliente do sistema
+ *       parameters:
+ *           - in: path
+ *             name: id
+ *             required: true
+ *             schema:
+ *               type: integer
+ *       responses:
+ *            200:
+ *               description: Cliente excluído com sucesso
+ *            404:
+ *               description: Cliente não encontrado
+ */
+app.delete("/api/clientes/:id", (req, res) => {
+
+    //Capturar o ID enviado no path da uri
+    const id = parseInt(req.params.id);
+
+    //Verificar se o cliente existe através do ID
+    const existe = clientes.some(c => c.id == id);
+
+    if(!existe) {
+        return res.status(404).json({ mensagem : "Cliente não encontrado para exclusão." });
+    }
+
+    //Excluir o cliente
+    clientes = clientes.filter(c => c.id !== id);
+
+    //Retornar resposta
+    res.json({
+        mensagem: "Cliente excluído com sucesso."
+    });
+});
+
 
 //Executar o servidor da aplicação
 app.listen(3000, () => {
