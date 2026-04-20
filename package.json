@@ -19,7 +19,9 @@
   },
   "homepage": "https://github.com/sergiocotiazure20262-lang/api-clientes#readme",
   "dependencies": {
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "pg": "^8.20.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   }

@@ -1,0 +1,35 @@
+# Configurando os serviços que serão
+# instalados e executados no Docker
+# para este projeto
+services:
+
+  postgres: #Nome do serviço
+    image: postgres:16 #Instalador do postgres
+    container_name: postgresql_local #Nome do container
+    restart: always #Sempre manter o serviço em execução
+    environment: #Variáveis de ambiente do postgres
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: senha
+      POSTGRES_DB: dbclientes
+    ports:
+      - "5432:5432" #Portas em que o serviço irá rodar
+    volumes:
+      - postgres_data:/var/lib/postgresql/data #Diretório dos arquivos
+
+  pgadmin: #Nome do serviço
+    image: dpage/pgadmin4
+    container_name: pgadmin_local
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8081:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+volumes: #Criando os diretórios onde os dados serão salvos
+  postgres_data:
+  pgadmin_data:
