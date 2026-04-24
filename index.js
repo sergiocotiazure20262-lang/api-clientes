@@ -64,12 +64,6 @@ async function inicializarBanco() {
         `);
 }
 
-//Estrutura de dados para armazenar os clientes em memória
-let clientes = [ //array de objetos
-    { id : 1, nome : 'Ana Maria', email : 'anamaria@gmail.com' },
-    { id : 2, nome : 'João Pedro', email : 'joaopedro@gmail.com' }
-];
-
 /**
  * @swagger
  * /api/clientes:
@@ -79,9 +73,13 @@ let clientes = [ //array de objetos
  *           200:
  *             description: lista de clientes
  */
-app.get('/api/clientes', (req, res) => {
+app.get('/api/clientes', async (req, res) => {
+
+    //Consultar todos os clientes cadastrados no banco de dados
+    const result = await pool.query('SELECT ID, NOME, EMAIL FROM CLIENTES ORDER BY ID');
+
     //Retornar (response) todos os clientes cadastrados em formato JSON
-    res.json(clientes);
+    res.json(result.rows);
 });
 
 /**
@@ -101,23 +99,23 @@ app.get('/api/clientes', (req, res) => {
  *          404:
  *             description: Cliente não encontrado
  */
-app.get('/api/clientes/:id', (req, res) => {
+app.get('/api/clientes/:id', async (req, res) => {
 
     //Capturar o ID enviado no path da requisição (uri do endpoint)
     const id = parseInt(req.params.id);
 
-    //Buscar o cliente pelo id
-    const cliente = clientes.find(c => c.id == id);
+    //Consultar o cliente no banco de dados através do ID
+    const result = await pool.query('SELECT ID, NOME, EMAIL FROM CLIENTES WHERE ID = $1', [id]);
 
-    //Verificando se o cliente não foi encontrado
-    if(!cliente) {
+    //Verificando se algum registro foi encontrado
+    if(result.rows.length > 0) {
+        res.status(200).json(result.rows[0]);
+    }
+    else {
         return res.status(404).json({
-            mensagem : "Cliente não encontrado. Verifique o ID informado."
+            mensagem : 'Cliente não encontrado.'
         });
     }
-
-    //Retornar os dado do cliente
-    res.json(cliente);
 });
 
 
@@ -141,24 +139,38 @@ app.get('/api/clientes/:id', (req, res) => {
  *         201:
  *           description: Cliente cadastrado com sucesso
  */
-app.post('/api/clientes', (req, res) => {
+app.post('/api/clientes', async (req, res) => {
 
     //Capturar os dados recebidos do cliente
     const { nome } = req.body; //Nome do cliente
     const { email } = req.body; //Email do cliente
 
-    //Criando um novo cliente
-    const novoCliente = {
-        id: clientes[clientes.length - 1].id + 1, //Id sequencial
-        nome,
-        email
-    };
+    //Verificar se os campos estão vazios
+    if(!nome || !email) {
+        return res.status(400).json({ //HTTP 400 - BAD REQUEST
+            mensagem: 'Nome e email são obrigatórios.'
+        })
+    }
 
-    //Adicionando o cliente na lista / array
-    clientes.push(novoCliente);
+    //Verificar se o email informado já está cadastrado para algum cliente
+    const emailJaExiste = await pool.query(
+        'SELECT 1 FROM CLIENTES WHERE EMAIL = $1 LIMIT 1', [email]
+    );
+
+    if(emailJaExiste.rowCount > 0) {
+        return res.status(409).json({ //HTTP 409 - CONFLICT
+            mensagem: 'Já existe um cliente com este email.'
+        });
+    }
+
+    //Cadastrar o cliente no banco de dados
+    const result = await pool.query(
+        'INSERT INTO CLIENTES(NOME, EMAIL) VALUES($1, $2) RETURNING ID, NOME, EMAIL',
+        [nome, email]
+    );
 
     //Retornar os dados do cliente cadastrado
-    res.status(201).json(novoCliente);
+    res.status(201).json(result.rows[0]);
 });
 
 /**
@@ -189,7 +201,7 @@ app.post('/api/clientes', (req, res) => {
  *             404:
  *                 description: Cliente não encontrado
  */
-app.put('/api/clientes/:id', (req, res) => {
+app.put('/api/clientes/:id', async (req, res) => {
 
     //Capturando o id enviado na URI (path) da requisição
     const id = parseInt(req.params.id);
@@ -198,22 +210,40 @@ app.put('/api/clientes/:id', (req, res) => {
     const { nome } = req.body;
     const { email } = req.body;
 
-    //Buscar o cliente pelo ID
-    const cliente = clientes.find(c => c.id == id);
-
-    //Verificar se o cliente não foi encontrado
-    if(!cliente) {
-        return res.status(404).json({
-            mensagem: "Cliente não encontrado para edição."
-         });
+    //Verificar se o nome ou email estão vazios
+    if(!nome || !email) {
+        return res.status(400).json({ //HTTP 400 - BAD REQUEST
+            mensagem: 'Nome e email são obrigatórios.'
+        })
     }
 
-    //Modificar os dados do cliente
-    cliente.nome = nome;
-    cliente.email = email;
+    //Verificar se o email já está cadastrado para outro cliente
+    const emailJaExiste = await pool.query(
+        'SELECT 1 FROM CLIENTES WHERE EMAIL = $1 AND ID <> $2 LIMIT 1',
+        [email, id]
+    );
 
-    //Retornar os dados do cliente atualizado
-    res.json(cliente);
+    if(emailJaExiste.rowCount > 0) {
+        return res.status(409).json({ //HTTP 409 - CONFLICT
+            mensagem: 'Já existe um outro cliente com este email.'
+        });
+    }
+
+    //Atualizando o cliente no banco de dados
+    const result = await pool.query(
+        'UPDATE CLIENTES SET NOME = $1, EMAIL = $2 WHERE id = $3 RETURNING ID, NOME, EMAIL',
+        [nome, email, id]
+    );
+    
+    //Verificar se algum cliente foi alterado
+    if(result.rows.length > 0) {
+        res.status(200).json(result.rows[0]);
+    }
+    else {
+        return res.status(404).json({
+            mensagem : 'Cliente não encontrado para edição.'
+        });
+    }
 });
 
 /**
@@ -233,25 +263,26 @@ app.put('/api/clientes/:id', (req, res) => {
  *            404:
  *               description: Cliente não encontrado
  */
-app.delete("/api/clientes/:id", (req, res) => {
+app.delete("/api/clientes/:id", async (req, res) => {
 
     //Capturar o ID enviado no path da uri
     const id = parseInt(req.params.id);
 
-    //Verificar se o cliente existe através do ID
-    const existe = clientes.some(c => c.id == id);
+    //Executando a exclusão no banco de dados
+    const result = await pool.query(
+        'DELETE FROM CLIENTES WHERE ID = $1 RETURNING ID, NOME, EMAIL',
+        [id]
+    );
 
-    if(!existe) {
-        return res.status(404).json({ mensagem : "Cliente não encontrado para exclusão." });
+    //Verificar se algum cliente foi excluído
+    if(result.rows.length > 0) {
+        res.status(200).json(result.rows[0]);
     }
-
-    //Excluir o cliente
-    clientes = clientes.filter(c => c.id !== id);
-
-    //Retornar resposta
-    res.json({
-        mensagem: "Cliente excluído com sucesso."
-    });
+    else {
+          return res.status(404).json({
+            mensagem : 'Cliente não encontrado para exclusão.'
+        });
+    }
 });
 
 //Executar a conexão e incialização do banco de dados
